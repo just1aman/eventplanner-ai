@@ -1,0 +1,118 @@
+/* EventPlanner.AI Custom Styles */
+
+.wizard-progress {
+    display: flex;
+    justify-content: center;
+    gap: 0;
+    margin-bottom: 2rem;
+}
+
+.wizard-step {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1.25rem;
+    background: #e9ecef;
+    color: #6c757d;
+    font-weight: 500;
+    position: relative;
+}
+
+.wizard-step:first-child {
+    border-radius: 0.5rem 0 0 0.5rem;
+}
+
+.wizard-step:last-child {
+    border-radius: 0 0.5rem 0.5rem 0;
+}
+
+.wizard-step.active {
+    background: #0d6efd;
+    color: white;
+}
+
+.wizard-step.completed {
+    background: #198754;
+    color: white;
+}
+
+.wizard-step-number {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.3);
+    font-size: 0.85rem;
+    font-weight: 700;
+}
+
+.wizard-step.active .wizard-step-number,
+.wizard-step.completed .wizard-step-number {
+    background: rgba(255, 255, 255, 0.3);
+}
+
+/* Plan section cards */
+.plan-section-card {
+    transition: box-shadow 0.2s;
+}
+
+.plan-section-card:hover {
+    box-shadow: 0 0.25rem 0.75rem rgba(0, 0, 0, 0.1);
+}
+
+/* Chat refinement area */
+.chat-area {
+    max-height: 300px;
+    overflow-y: auto;
+    background: #f8f9fa;
+    border-radius: 0.5rem;
+    padding: 1rem;
+}
+
+.chat-message {
+    margin-bottom: 0.75rem;
+    padding: 0.5rem 0.75rem;
+    border-radius: 0.5rem;
+    max-width: 85%;
+}
+
+.chat-message.user {
+    background: #0d6efd;
+    color: white;
+    margin-left: auto;
+}
+
+.chat-message.assistant {
+    background: white;
+    border: 1px solid #dee2e6;
+}
+
+/* Loading animation */
+.generating-dots::after {
+    content: '';
+    animation: dots 1.5s steps(4, end) infinite;
+}
+
+@keyframes dots {
+    0%, 20% { content: ''; }
+    40% { content: '.'; }
+    60% { content: '..'; }
+    80%, 100% { content: '...'; }
+}
+
+/* Checklist styling */
+.checklist-item.completed .checklist-title {
+    text-decoration: line-through;
+    color: #6c757d;
+}
+
+/* Landing page hero */
+.hero-section {
+    background: linear-gradient(135deg, #0d6efd 0%, #6610f2 100%);
+    color: white;
+    padding: 4rem 0;
+    border-radius: 1rem;
+    margin-bottom: 2rem;
+}

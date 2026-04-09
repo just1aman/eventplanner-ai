@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block title %}Dashboard - EventPlanner.AI{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>Your Events</h2>
+    <a href="{{ url_for('wizard.step1_basics') }}" class="btn btn-primary">
+        <i class="bi bi-plus-circle"></i> New Event
+    </a>
+</div>
+
+{% if events %}
+<div class="row g-3">
+    {% for event in events %}
+    <div class="col-md-6 col-lg-4">
+        <div class="card h-100 shadow-sm">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                    <h5 class="card-title mb-0">{{ event.honoree_name }}'s Birthday</h5>
+                    <span class="badge bg-{{ 'success' if event.status == 'planned' else ('warning' if event.status == 'draft' else 'secondary') }}">
+                        {{ event.status | title }}
+                    </span>
+                </div>
+                <p class="card-text text-muted mb-2">
+                    Turning {{ event.honoree_age }} &bull;
+                    {{ event.event_date.strftime('%b %d, %Y') }}
+                </p>
+                <p class="card-text small">
+                    <i class="bi bi-geo-alt"></i> {{ event.location_city or 'TBD' }} &bull;
+                    <i class="bi bi-people"></i> {{ event.guest_count }} guests &bull;
+                    <i class="bi bi-cash"></i> {{ event.budget_display }}
+                </p>
+                {% if event.status == 'planned' %}
+                {% set total = event.checklist_items.count() %}
+                {% set done = event.checklist_items.filter_by(is_completed=True).count() %}
+                {% if total > 0 %}
+                <div class="progress mb-2" style="height: 6px;">
+                    <div class="progress-bar bg-success" style="width: {{ (done / total * 100) | int }}%"></div>
+                </div>
+                <small class="text-muted">{{ done }}/{{ total }} items completed</small>
+                {% endif %}
+                {% endif %}
+            </div>
+            <div class="card-footer bg-white border-top-0 d-flex justify-content-between">
+                <a href="{{ url_for('dashboard.event_detail', event_id=event.id) }}" class="btn btn-sm btn-outline-primary">
+                    {{ 'Continue' if event.status == 'draft' else 'View' }}
+                </a>
+                <form method="POST" action="{{ url_for('dashboard.delete_event', event_id=event.id) }}"
+                      onsubmit="return confirm('Delete this event?')">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" class="btn btn-sm btn-outline-danger">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="text-center py-5">
+    <i class="bi bi-calendar-plus text-muted" style="font-size: 4rem;"></i>
+    <h4 class="mt-3">No events yet</h4>
+    <p class="text-muted">Create your first event and let AI plan the perfect party!</p>
+    <a href="{{ url_for('wizard.step1_basics') }}" class="btn btn-primary mt-2">
+        <i class="bi bi-plus-circle"></i> Plan a Party
+    </a>
+</div>
+{% endif %}
+{% endblock %}

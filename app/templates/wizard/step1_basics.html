@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+{% block title %}New Event - EventPlanner.AI{% endblock %}
+
+{% block content %}
+{% include "partials/_wizard_progress.html" %}
+
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <div class="card shadow-sm">
+            <div class="card-body p-4">
+                <h2 class="card-title mb-1">Tell us about the birthday party</h2>
+                <p class="text-muted mb-4">Fill in the details and our AI will create a complete plan for you.</p>
+
+                <form method="POST">
+                    {{ form.hidden_tag() }}
+
+                    <div class="row">
+                        <div class="col-md-8 mb-3">
+                            {{ form.honoree_name.label(class="form-label") }}
+                            {{ form.honoree_name(class="form-control" + (" is-invalid" if form.honoree_name.errors else ""), placeholder="e.g., Sarah") }}
+                            {% for error in form.honoree_name.errors %}
+                            <div class="invalid-feedback">{{ error }}</div>
+                            {% endfor %}
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            {{ form.honoree_age.label(class="form-label") }}
+                            {{ form.honoree_age(class="form-control" + (" is-invalid" if form.honoree_age.errors else ""), placeholder="e.g., 30") }}
+                            {% for error in form.honoree_age.errors %}
+                            <div class="invalid-feedback">{{ error }}</div>
+                            {% endfor %}
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            {{ form.event_date.label(class="form-label") }}
+                            {{ form.event_date(class="form-control" + (" is-invalid" if form.event_date.errors else "")) }}
+                            {% for error in form.event_date.errors %}
+                            <div class="invalid-feedback">{{ error }}</div>
+                            {% endfor %}
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            {{ form.event_time.label(class="form-label") }}
+                            {{ form.event_time(class="form-control" + (" is-invalid" if form.event_time.errors else ""), placeholder="e.g., 2:00 PM") }}
+                            {% for error in form.event_time.errors %}
+                            <div class="invalid-feedback">{{ error }}</div>
+                            {% endfor %}
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            {{ form.location_pref.label(class="form-label") }}
+                            {{ form.location_pref(class="form-select" + (" is-invalid" if form.location_pref.errors else "")) }}
+                            {% for error in form.location_pref.errors %}
+                            <div class="invalid-feedback">{{ error }}</div>
+                            {% endfor %}
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            {{ form.location_city.label(class="form-label") }}
+                            {{ form.location_city(class="form-control" + (" is-invalid" if form.location_city.errors else ""), placeholder="e.g., Austin, TX") }}
+                            {% for error in form.location_city.errors %}
+                            <div class="invalid-feedback">{{ error }}</div>
+                            {% endfor %}
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        {{ form.guest_count.label(class="form-label") }}
+                        {{ form.guest_count(class="form-control" + (" is-invalid" if form.guest_count.errors else ""), placeholder="e.g., 25") }}
+                        {% for error in form.guest_count.errors %}
+                        <div class="invalid-feedback">{{ error }}</div>
+                        {% endfor %}
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            {{ form.budget_min.label(class="form-label") }}
+                            {{ form.budget_min(class="form-control" + (" is-invalid" if form.budget_min.errors else ""), placeholder="e.g., 200") }}
+                            {% for error in form.budget_min.errors %}
+                            <div class="invalid-feedback">{{ error }}</div>
+                            {% endfor %}
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            {{ form.budget_max.label(class="form-label") }}
+                            {{ form.budget_max(class="form-control" + (" is-invalid" if form.budget_max.errors else ""), placeholder="e.g., 500") }}
+                            {% for error in form.budget_max.errors %}
+                            <div class="invalid-feedback">{{ error }}</div>
+                            {% endfor %}
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        {{ form.theme_vibe.label(class="form-label") }}
+                        {{ form.theme_vibe(class="form-control" + (" is-invalid" if form.theme_vibe.errors else ""), rows=2, placeholder="e.g., tropical luau, casual BBQ, princess theme, elegant dinner...") }}
+                        {% for error in form.theme_vibe.errors %}
+                        <div class="invalid-feedback">{{ error }}</div>
+                        {% endfor %}
+                    </div>
+
+                    <div class="mb-4">
+                        {{ form.additional_notes.label(class="form-label") }}
+                        {{ form.additional_notes(class="form-control" + (" is-invalid" if form.additional_notes.errors else ""), rows=3, placeholder="e.g., vegetarian guests, need wheelchair accessibility, surprise party...") }}
+                        {% for error in form.additional_notes.errors %}
+                        <div class="invalid-feedback">{{ error }}</div>
+                        {% endfor %}
+                    </div>
+
+                    <div class="d-grid">
+                        {{ form.submit(class="btn btn-primary btn-lg") }}
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

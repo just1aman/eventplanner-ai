@@ -1,0 +1,95 @@
+{% set data = sections.get(key, None) if sections is defined else None %}
+
+{% if data is none %}
+<p class="text-muted">No data available for this section.</p>
+
+{% elif key == 'venue_suggestions' and data is iterable %}
+{% for venue in data %}
+<div class="card mb-2">
+    <div class="card-body py-2">
+        <h6 class="mb-1">{{ venue.name }}</h6>
+        <p class="mb-1 small">{{ venue.description }}</p>
+        <span class="badge bg-primary">{{ venue.estimated_cost }}</span>
+        {% if venue.pros %}<br><small class="text-success">Pros: {{ venue.pros | join(', ') }}</small>{% endif %}
+        {% if venue.cons %}<br><small class="text-danger">Cons: {{ venue.cons | join(', ') }}</small>{% endif %}
+    </div>
+</div>
+{% endfor %}
+
+{% elif key == 'decorations' and data is iterable %}
+<div class="table-responsive">
+<table class="table table-sm">
+    <thead><tr><th>Item</th><th>Cost</th><th>Where</th></tr></thead>
+    <tbody>
+    {% for item in data %}
+    <tr><td>{{ item.item }}</td><td>{{ item.estimated_cost }}</td><td>{{ item.where_to_buy }}</td></tr>
+    {% endfor %}
+    </tbody>
+</table>
+</div>
+
+{% elif key == 'food_catering' and data is mapping %}
+<h6>Menu Suggestions</h6>
+<ul>
+{% for item in data.get('menu_suggestions', []) %}
+<li>{{ item.item }} (serves {{ item.serves }}) &mdash; {{ item.estimated_cost }}</li>
+{% endfor %}
+</ul>
+{% if data.get('catering_option') %}
+<h6>Catering Option</h6>
+<p>{{ data.catering_option.description }} &mdash; {{ data.catering_option.estimated_cost }}</p>
+{% endif %}
+{% if data.get('diy_option') %}
+<h6>DIY Option</h6>
+<p>{{ data.diy_option.description }} &mdash; {{ data.diy_option.estimated_cost }}</p>
+{% endif %}
+
+{% elif key == 'entertainment' and data is iterable %}
+{% for item in data %}
+<div class="d-flex justify-content-between align-items-start mb-2 p-2 bg-light rounded">
+    <div>
+        <strong>{{ item.activity }}</strong>
+        <p class="mb-0 small">{{ item.description }} ({{ item.duration_minutes }} min)</p>
+    </div>
+    <span class="badge bg-secondary">{{ item.estimated_cost }}</span>
+</div>
+{% endfor %}
+
+{% elif key == 'day_timeline' and data is iterable %}
+<div class="list-group list-group-flush">
+{% for entry in data %}
+<div class="list-group-item px-0">
+    <strong>{{ entry.time }}</strong> &mdash; {{ entry.activity }}
+    {% if entry.notes %}<br><small class="text-muted">{{ entry.notes }}</small>{% endif %}
+</div>
+{% endfor %}
+</div>
+
+{% elif key == 'shopping_list' and data is iterable %}
+<div class="table-responsive">
+<table class="table table-sm">
+    <thead><tr><th>Item</th><th>Qty</th><th>Cost</th><th>Category</th></tr></thead>
+    <tbody>
+    {% for item in data %}
+    <tr><td>{{ item.item }}</td><td>{{ item.quantity }}</td><td>{{ item.estimated_cost }}</td><td><span class="badge bg-light text-dark">{{ item.category }}</span></td></tr>
+    {% endfor %}
+    </tbody>
+</table>
+</div>
+
+{% elif key == 'cost_breakdown' and data is mapping %}
+<div class="table-responsive">
+<table class="table table-sm">
+    <tbody>
+    {% for k, v in data.items() %}
+    <tr class="{{ 'table-primary fw-bold' if k == 'total_estimated' else '' }}">
+        <td>{{ k | replace('_', ' ') | title }}</td><td class="text-end">{{ v }}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+</table>
+</div>
+
+{% else %}
+<pre class="bg-light p-2 rounded small">{{ data | tojson(indent=2) }}</pre>
+{% endif %}
