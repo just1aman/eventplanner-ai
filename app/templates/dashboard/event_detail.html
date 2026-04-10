@@ -56,8 +56,6 @@
     <!-- Checklist -->
     <div class="col-lg-5 mt-4 mt-lg-0">
         <h4 class="mb-3">Checklist</h4>
-        {% set total = grouped_items.values() | sum(attribute='__len__', default=0) %}
-
         {% for category, items in grouped_items.items() %}
         <div class="card mb-3">
             <div class="card-header bg-white py-2">
