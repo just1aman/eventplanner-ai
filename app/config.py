@@ -8,6 +8,7 @@ class BaseConfig:
     ANTHROPIC_MODEL = 'claude-sonnet-4-20250514'
     OPENWEATHER_API_KEY = os.environ.get('OPENWEATHER_API_KEY')
     AMAZON_AFFILIATE_TAG = os.environ.get('AMAZON_AFFILIATE_TAG', 'eventplanai-20')
+    GOOGLE_PLACES_API_KEY = os.environ.get('GOOGLE_PLACES_API_KEY')
     GOOGLE_CLIENT_ID = os.environ.get('GOOGLE_CLIENT_ID')
     GOOGLE_CLIENT_SECRET = os.environ.get('GOOGLE_CLIENT_SECRET')
 

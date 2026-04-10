@@ -1,153 +1,188 @@
+"""
+Agentic AI planner using Claude's tool-use API.
+
+The agent is given a set of tools (search_places, get_weather_forecast,
+build_amazon_search_url, submit_final_plan) and loops through:
+  think → call tool → observe result → think → ...
+until it calls submit_final_plan with the complete party plan.
+"""
 import json
 import re
 import anthropic
 from flask import current_app
+from app.services.tools import TOOL_SCHEMAS, execute_tool
 
 
-SYSTEM_PROMPT = """You are EventPlanner.AI, an expert birthday party planner. You create detailed, \
-actionable party plans tailored to the user's budget, preferences, and constraints.
-
-Rules:
-- Always respect the stated budget range. If the budget is tight, prioritize cost-effective options and DIY alternatives.
-- Provide specific, actionable suggestions (not vague advice).
-- Include price estimates in USD.
-- Consider the age of the honoree when suggesting entertainment and themes.
-- For outdoor events, note weather-dependent contingencies.
-- Be enthusiastic but practical.
-
-You MUST respond with valid JSON matching the requested schema. Do not include any text outside the JSON object."""
+MAX_AGENT_ITERATIONS = 15
 
 
-PLAN_GENERATION_PROMPT = """Create a comprehensive birthday party plan based on these details:
+SYSTEM_PROMPT = """You are EventPlanner.AI, an expert AI agent that plans real birthday parties.
 
-- Honoree: {honoree_name}, turning {honoree_age}
-- Date: {event_date} at {event_time}
-- Location preference: {location_pref}
-- City/Area: {location_city}
-- Expected guests: {guest_count}
-- Budget: ${budget_min} - ${budget_max}
-- Theme/vibe: {theme_vibe}
-- Additional notes: {additional_notes}
+You have access to tools that let you search for actual venues, check the weather, and build Amazon \
+shopping links. Use them to create a plan grounded in real data, not just your training knowledge.
 
-Respond with a JSON object containing these exact keys:
+Your process:
+1. Start by searching for real venues in the user's city that match their preferences and budget.
+2. If the event is within 5 days, check the weather forecast — this affects whether outdoor options work.
+3. Search for additional services as needed (caterers, party supply stores, entertainment providers).
+4. Build Amazon URLs for the shopping list items.
+5. When you have enough information, call submit_final_plan with the complete, structured plan.
 
-{{
-  "venue_suggestions": [
-    {{"name": "...", "description": "...", "estimated_cost": "...", "pros": ["..."], "cons": ["..."]}}
-  ],
-  "decorations": [
-    {{"item": "...", "description": "...", "estimated_cost": "...", "where_to_buy": "..."}}
-  ],
-  "food_catering": {{
-    "menu_suggestions": [{{"item": "...", "serves": 10, "estimated_cost": "..."}}],
-    "catering_option": {{"description": "...", "estimated_cost": "..."}},
-    "diy_option": {{"description": "...", "estimated_cost": "..."}}
-  }},
-  "entertainment": [
-    {{"activity": "...", "description": "...", "duration_minutes": 30, "estimated_cost": "..."}}
-  ],
-  "day_timeline": [
-    {{"time": "...", "activity": "...", "notes": "..."}}
-  ],
-  "shopping_list": [
-    {{"item": "...", "quantity": 1, "estimated_cost": "...", "category": "..."}}
-  ],
-  "cost_breakdown": {{
-    "venue": "...",
-    "decorations": "...",
-    "food": "...",
-    "entertainment": "...",
-    "miscellaneous": "...",
-    "total_estimated": "..."
-  }}
-}}"""
+Important rules:
+- ALWAYS try search_places at least once before making venue recommendations.
+- Respect the budget strictly. If the budget is tight, prioritize DIY and low-cost options.
+- Consider the honoree's age when picking activities.
+- For outdoor events within 5 days, ALWAYS check weather first.
+- Call submit_final_plan EXACTLY ONCE at the end with the complete plan.
+- If a tool returns an error (e.g., API not configured), continue with your general knowledge and note \
+  that the data is estimated.
+- Be specific and actionable. Include real venue names from search results when possible.
+"""
 
 
-REFINEMENT_PROMPT = """The user is refining their birthday party plan. Here is the current full plan:
+def _build_initial_prompt(event):
+    return f"""Plan a birthday party with these details:
 
-{current_plan}
+- Honoree: {event.honoree_name}, turning {event.honoree_age}
+- Date: {event.event_date.strftime('%Y-%m-%d')} ({event.event_date.strftime('%A, %B %d, %Y')}) at {event.event_time or 'afternoon'}
+- Location preference: {event.location_pref}
+- City/Area: {event.location_city or 'not specified'}
+- Expected guests: {event.guest_count}
+- Budget: ${event.budget_min} - ${event.budget_max}
+- Theme/vibe: {event.theme_vibe or 'no specific theme'}
+- Additional notes: {event.additional_notes or 'none'}
 
-The user wants to change the "{section}" section. Their request:
-"{user_message}"
-
-Previous conversation about this plan:
-{chat_history}
-
-Respond with ONLY the updated JSON for the "{section}" section, using the same schema as the original. Do not include other sections."""
+Start by searching for real venues, then build the complete plan. Call submit_final_plan when done."""
 
 
 def _get_client():
     return anthropic.Anthropic(api_key=current_app.config['ANTHROPIC_API_KEY'])
 
 
-def _parse_json_response(text):
-    """Extract JSON from AI response, handling potential markdown wrapping."""
-    try:
-        return json.loads(text)
-    except json.JSONDecodeError:
-        pass
-    match = re.search(r'```(?:json)?\s*([\s\S]*?)```', text)
-    if match:
-        return json.loads(match.group(1))
-    start = text.index('{')
-    end = text.rindex('}') + 1
-    return json.loads(text[start:end])
-
-
 def generate_party_plan(event):
-    """Generate a full party plan from event details. Returns (plan_dict, raw_text)."""
+    """Run the agentic planning loop. Returns (plan_dict, raw_trace_text).
+
+    The raw trace captures all tool calls and responses for debugging.
+    """
     client = _get_client()
     model = current_app.config.get('ANTHROPIC_MODEL', 'claude-sonnet-4-20250514')
 
-    user_prompt = PLAN_GENERATION_PROMPT.format(
-        honoree_name=event.honoree_name,
-        honoree_age=event.honoree_age,
-        event_date=event.event_date.strftime('%B %d, %Y'),
-        event_time=event.event_time or 'afternoon',
-        location_pref=event.location_pref,
-        location_city=event.location_city or 'not specified',
-        guest_count=event.guest_count,
-        budget_min=event.budget_min,
-        budget_max=event.budget_max,
-        theme_vibe=event.theme_vibe or 'no specific theme',
-        additional_notes=event.additional_notes or 'none',
-    )
+    messages = [{"role": "user", "content": _build_initial_prompt(event)}]
+    trace_lines = []
+    final_plan = None
 
-    response = client.messages.create(
-        model=model,
-        max_tokens=4096,
-        system=SYSTEM_PROMPT,
-        messages=[{"role": "user", "content": user_prompt}]
-    )
+    for iteration in range(MAX_AGENT_ITERATIONS):
+        trace_lines.append(f"\n--- Iteration {iteration + 1} ---")
 
-    raw_text = response.content[0].text
-    plan_dict = _parse_json_response(raw_text)
-    return plan_dict, raw_text
+        response = client.messages.create(
+            model=model,
+            max_tokens=4096,
+            system=SYSTEM_PROMPT,
+            tools=TOOL_SCHEMAS,
+            messages=messages,
+        )
+
+        # Log text blocks
+        for block in response.content:
+            if getattr(block, 'type', None) == 'text' and block.text.strip():
+                trace_lines.append(f"[think] {block.text[:500]}")
+
+        # If the model is done without calling a tool, break
+        if response.stop_reason == "end_turn":
+            trace_lines.append("[end_turn] Agent finished without calling submit_final_plan")
+            break
+
+        if response.stop_reason != "tool_use":
+            trace_lines.append(f"[stop_reason] Unexpected: {response.stop_reason}")
+            break
+
+        # Process tool calls
+        tool_results = []
+        submitted = False
+
+        for block in response.content:
+            if getattr(block, 'type', None) != 'tool_use':
+                continue
+
+            tool_name = block.name
+            tool_input = block.input or {}
+            trace_lines.append(f"[tool_call] {tool_name}({json.dumps(tool_input)[:300]})")
+
+            if tool_name == "submit_final_plan":
+                # Capture the final plan and return a success result
+                final_plan = tool_input
+                tool_results.append({
+                    "type": "tool_result",
+                    "tool_use_id": block.id,
+                    "content": "Plan received. Thank you!",
+                })
+                submitted = True
+            else:
+                result = execute_tool(tool_name, tool_input)
+                result_str = json.dumps(result)
+                trace_lines.append(f"[tool_result] {result_str[:500]}")
+                tool_results.append({
+                    "type": "tool_result",
+                    "tool_use_id": block.id,
+                    "content": result_str,
+                })
+
+        # Append assistant turn and tool results to conversation
+        messages.append({"role": "assistant", "content": response.content})
+        messages.append({"role": "user", "content": tool_results})
+
+        if submitted:
+            trace_lines.append("[submit_final_plan] Plan submitted, exiting loop")
+            break
+
+    if final_plan is None:
+        raise RuntimeError(
+            "Agent did not submit a final plan within "
+            f"{MAX_AGENT_ITERATIONS} iterations. Trace:\n" + "\n".join(trace_lines)
+        )
+
+    raw_trace = "\n".join(trace_lines)
+    return final_plan, raw_trace
 
 
 def refine_plan_section(event, section_name, user_message, chat_history_text):
-    """Refine a specific section of the plan. Returns updated section data."""
+    """Simple single-shot refinement (non-agentic) for backwards compatibility."""
     client = _get_client()
     model = current_app.config.get('ANTHROPIC_MODEL', 'claude-sonnet-4-20250514')
 
     current_plan = json.dumps(event.plan.get_all_sections(), indent=2)
 
-    user_prompt = REFINEMENT_PROMPT.format(
-        current_plan=current_plan,
-        section=section_name,
-        user_message=user_message,
-        chat_history=chat_history_text or 'No prior conversation.',
-    )
+    prompt = f"""The user is refining their birthday party plan. Here is the current full plan:
+
+{current_plan}
+
+The user wants to change the "{section_name}" section. Their request:
+"{user_message}"
+
+Previous conversation about this plan:
+{chat_history_text or 'No prior conversation.'}
+
+Respond with ONLY the updated JSON for the "{section_name}" section, using the same schema as the original. Do not include other sections or any text outside the JSON."""
 
     response = client.messages.create(
         model=model,
         max_tokens=2048,
-        system=SYSTEM_PROMPT,
-        messages=[{"role": "user", "content": user_prompt}]
+        system="You are EventPlanner.AI. Respond only with valid JSON.",
+        messages=[{"role": "user", "content": prompt}],
     )
 
     raw_text = response.content[0].text
-    return _parse_json_response(raw_text)
+    # Try direct parse, then fallback to brace extraction
+    try:
+        return json.loads(raw_text)
+    except json.JSONDecodeError:
+        pass
+    match = re.search(r'```(?:json)?\s*([\s\S]*?)```', raw_text)
+    if match:
+        return json.loads(match.group(1))
+    start = raw_text.index('{')
+    end = raw_text.rindex('}') + 1
+    return json.loads(raw_text[start:end])
 
 
 def generate_checklist_from_plan(plan_dict, event):
@@ -157,7 +192,6 @@ def generate_checklist_from_plan(plan_dict, event):
     items = []
     order = 0
 
-    # Shopping list items
     for item in plan_dict.get('shopping_list', []):
         items.append({
             'category': 'shopping',
@@ -169,12 +203,11 @@ def generate_checklist_from_plan(plan_dict, event):
         })
         order += 1
 
-    # Venue items
     for venue in plan_dict.get('venue_suggestions', []):
         items.append({
             'category': 'booking',
             'title': f"Check out: {venue.get('name', 'Venue')}",
-            'description': venue.get('description', ''),
+            'description': venue.get('description', '') or venue.get('address', ''),
             'sort_order': order,
             'external_url': google_maps_search_url(
                 f"{venue.get('name', '')} {event.location_city or ''}"
@@ -183,7 +216,6 @@ def generate_checklist_from_plan(plan_dict, event):
         })
         order += 1
 
-    # Decoration items
     for deco in plan_dict.get('decorations', []):
         items.append({
             'category': 'shopping',
@@ -195,7 +227,6 @@ def generate_checklist_from_plan(plan_dict, event):
         })
         order += 1
 
-    # Entertainment items
     for ent in plan_dict.get('entertainment', []):
         items.append({
             'category': 'booking',
@@ -205,7 +236,6 @@ def generate_checklist_from_plan(plan_dict, event):
         })
         order += 1
 
-    # Food/catering
     food = plan_dict.get('food_catering', {})
     if food.get('catering_option'):
         items.append({
@@ -216,7 +246,6 @@ def generate_checklist_from_plan(plan_dict, event):
         })
         order += 1
 
-    # Day-of prep items from timeline
     for entry in plan_dict.get('day_timeline', []):
         items.append({
             'category': 'day_of',
