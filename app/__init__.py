@@ -1,5 +1,5 @@
 from flask import Flask, render_template
-from app.extensions import db, login_manager, csrf, migrate
+from app.extensions import db, login_manager, csrf, migrate, oauth
 from app.config import config_by_name
 
 
@@ -11,6 +11,16 @@ def create_app(config_name='development'):
     login_manager.init_app(app)
     csrf.init_app(app)
     migrate.init_app(app, db)
+    oauth.init_app(app)
+
+    # Register Google OAuth provider
+    oauth.register(
+        name='google',
+        client_id=app.config.get('GOOGLE_CLIENT_ID'),
+        client_secret=app.config.get('GOOGLE_CLIENT_SECRET'),
+        server_metadata_url='https://accounts.google.com/.well-known/openid-configuration',
+        client_kwargs={'scope': 'openid email profile'},
+    )
 
     login_manager.login_view = 'auth.login'
     login_manager.login_message_category = 'info'
