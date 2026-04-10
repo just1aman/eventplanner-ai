@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block title %}Buy Decorations - EventPlanner.AI{% endblock %}
+
+{% block content %}
+{% include "partials/_wizard_progress.html" %}
+
+<div class="row">
+    <div class="col-lg-9">
+        <h2 class="mb-1"><i class="bi bi-balloon me-2"></i>Buy Decorations</h2>
+        <p class="text-muted mb-4">Check off the items you'll buy. Each one has an Amazon link to purchase directly.</p>
+
+        {% if decorations %}
+        <div class="card">
+            <ul class="list-group list-group-flush">
+                {% for deco in decorations %}
+                <li class="list-group-item">
+                    <div class="d-flex align-items-center">
+                        <div class="form-check me-3">
+                            <input class="form-check-input deco-toggle" type="checkbox"
+                                   data-idx="{{ loop.index0 }}"
+                                   {{ 'checked' if deco._picked else '' }}>
+                        </div>
+                        <div class="flex-grow-1">
+                            <strong>{{ deco.item }}</strong>
+                            <p class="mb-0 small text-muted">{{ deco.description }}</p>
+                            <small><span class="badge bg-light text-dark">{{ deco.estimated_cost }}</span> {{ deco.where_to_buy }}</small>
+                        </div>
+                        <a href="{{ deco._amazon_url }}" target="_blank" class="btn btn-warning btn-sm ms-2">
+                            <i class="bi bi-cart"></i> Buy on Amazon
+                        </a>
+                    </div>
+                </li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% else %}
+        <div class="alert alert-warning">No decoration suggestions available.</div>
+        {% endif %}
+
+        <div class="d-flex justify-content-between mt-4">
+            <a href="{{ url_for('wizard.step_food', event_id=event.id) }}" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left"></i> Back
+            </a>
+            <a href="{{ url_for('wizard.step_entertainment', event_id=event.id) }}" class="btn btn-primary btn-lg">
+                Next: Book Entertainment <i class="bi bi-arrow-right"></i>
+            </a>
+        </div>
+    </div>
+
+    {% include "partials/_event_summary.html" %}
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+(function() {
+    const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
+    const eventId = {{ event.id }};
+
+    document.querySelectorAll('.deco-toggle').forEach(cb => {
+        cb.addEventListener('change', function() {
+            const idx = parseInt(this.dataset.idx);
+            const action = this.checked ? 'add' : 'remove';
+            fetch(`/api/event/${eventId}/select`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrfToken},
+                body: JSON.stringify({key: 'decorations_picked', value: idx, action: action})
+            });
+        });
+    });
+})();
+</script>
+{% endblock %}

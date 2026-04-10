@@ -1,0 +1,136 @@
+{% extends "base.html" %}
+{% block title %}Order Food - EventPlanner.AI{% endblock %}
+
+{% block content %}
+{% include "partials/_wizard_progress.html" %}
+
+<div class="row">
+    <div class="col-lg-9">
+        <h2 class="mb-1"><i class="bi bi-cup-hot me-2"></i>Order Food</h2>
+        <p class="text-muted mb-4">Choose between catering or DIY, then take action to order your food.</p>
+
+        <div class="row g-3 mb-4">
+            <!-- Catering Option -->
+            {% if food.catering_option %}
+            <div class="col-md-6">
+                <div class="card h-100 food-option-card {{ 'border-primary border-2' if selected_style == 'catering' else '' }}">
+                    <div class="card-body d-flex flex-column">
+                        <h5 class="card-title">
+                            <i class="bi bi-truck me-2"></i>Catering
+                            {% if selected_style == 'catering' %}
+                            <span class="badge bg-primary ms-2">Selected</span>
+                            {% endif %}
+                        </h5>
+                        <p class="card-text flex-grow-1">{{ food.catering_option.description }}</p>
+                        <div>
+                            <span class="badge bg-success mb-2">{{ food.catering_option.estimated_cost }}</span>
+                        </div>
+                        <div class="d-flex gap-2 flex-wrap mt-2">
+                            <a href="https://www.google.com/search/?q=catering+{{ event.location_city | urlencode }}"
+                               target="_blank" class="btn btn-outline-primary btn-sm">
+                                <i class="bi bi-search"></i> Find Caterers
+                            </a>
+                            <button type="button" class="btn btn-primary btn-sm select-food-btn ms-auto"
+                                    data-food-style="catering">
+                                {% if selected_style == 'catering' %}
+                                <i class="bi bi-check-circle-fill"></i> Selected
+                                {% else %}
+                                Select Catering
+                                {% endif %}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- DIY Option -->
+            {% if food.diy_option %}
+            <div class="col-md-6">
+                <div class="card h-100 food-option-card {{ 'border-primary border-2' if selected_style == 'diy' else '' }}">
+                    <div class="card-body d-flex flex-column">
+                        <h5 class="card-title">
+                            <i class="bi bi-house-heart me-2"></i>DIY / Home-cooked
+                            {% if selected_style == 'diy' %}
+                            <span class="badge bg-primary ms-2">Selected</span>
+                            {% endif %}
+                        </h5>
+                        <p class="card-text flex-grow-1">{{ food.diy_option.description }}</p>
+                        <div>
+                            <span class="badge bg-success mb-2">{{ food.diy_option.estimated_cost }}</span>
+                        </div>
+                        <div class="d-flex gap-2 flex-wrap mt-2">
+                            <button type="button" class="btn btn-primary btn-sm select-food-btn ms-auto"
+                                    data-food-style="diy">
+                                {% if selected_style == 'diy' %}
+                                <i class="bi bi-check-circle-fill"></i> Selected
+                                {% else %}
+                                Select DIY
+                                {% endif %}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Menu suggestions -->
+        {% if food.menu_suggestions %}
+        <h5 class="mt-4">Suggested Menu Items</h5>
+        <div class="card">
+            <ul class="list-group list-group-flush">
+                {% for item in food.menu_suggestions %}
+                <li class="list-group-item d-flex justify-content-between align-items-center">
+                    <div>
+                        <strong>{{ item.item }}</strong>
+                        <small class="text-muted ms-2">Serves {{ item.serves }}</small>
+                    </div>
+                    <div>
+                        <span class="badge bg-light text-dark me-2">{{ item.estimated_cost }}</span>
+                        <a href="https://www.amazon.com/s?k={{ item.item | urlencode }}" target="_blank"
+                           class="btn btn-outline-warning btn-sm">
+                            <i class="bi bi-cart"></i> Amazon
+                        </a>
+                    </div>
+                </li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+
+        <div class="d-flex justify-content-between mt-4">
+            <a href="{{ url_for('wizard.step_venue', event_id=event.id) }}" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left"></i> Back
+            </a>
+            <a href="{{ url_for('wizard.step_decorations', event_id=event.id) }}" class="btn btn-primary btn-lg">
+                Next: Buy Decorations <i class="bi bi-arrow-right"></i>
+            </a>
+        </div>
+    </div>
+
+    {% include "partials/_event_summary.html" %}
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+(function() {
+    const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
+    const eventId = {{ event.id }};
+
+    document.querySelectorAll('.select-food-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const style = this.dataset.foodStyle;
+            fetch(`/api/event/${eventId}/select`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrfToken},
+                body: JSON.stringify({key: 'food_style', value: style})
+            })
+            .then(r => r.json())
+            .then(data => { if (data.status === 'success') window.location.reload(); });
+        });
+    });
+})();
+</script>
+{% endblock %}

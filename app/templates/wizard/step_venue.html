@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+{% block title %}Select Venue - EventPlanner.AI{% endblock %}
+
+{% block content %}
+{% include "partials/_wizard_progress.html" %}
+
+<div class="row">
+    <div class="col-lg-9">
+        <h2 class="mb-1"><i class="bi bi-geo-alt me-2"></i>Select a Venue</h2>
+        <p class="text-muted mb-4">Pick the venue you'd like to use. You can view it on Google Maps and book it directly.</p>
+
+        {% if venues %}
+        <div class="row g-3">
+            {% for venue in venues %}
+            <div class="col-md-12">
+                <div class="card venue-card {{ 'border-primary border-2' if selected_idx == loop.index0 else '' }}"
+                     data-venue-idx="{{ loop.index0 }}">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div class="flex-grow-1">
+                                <h5 class="card-title mb-1">
+                                    {{ venue.name }}
+                                    {% if selected_idx == loop.index0 %}
+                                    <span class="badge bg-primary ms-2"><i class="bi bi-check"></i> Selected</span>
+                                    {% endif %}
+                                </h5>
+                                <p class="card-text mb-2">{{ venue.description }}</p>
+                                <div class="mb-2">
+                                    <span class="badge bg-success">{{ venue.estimated_cost }}</span>
+                                </div>
+                                {% if venue.pros %}
+                                <p class="mb-1 small"><strong class="text-success">Pros:</strong> {{ venue.pros | join(', ') }}</p>
+                                {% endif %}
+                                {% if venue.cons %}
+                                <p class="mb-0 small"><strong class="text-danger">Cons:</strong> {{ venue.cons | join(', ') }}</p>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="mt-3 d-flex gap-2 flex-wrap">
+                            <a href="https://www.google.com/maps/search/{{ venue.name | urlencode }}+{{ event.location_city | urlencode }}"
+                               target="_blank" class="btn btn-outline-primary btn-sm">
+                                <i class="bi bi-geo-alt"></i> View on Google Maps
+                            </a>
+                            <a href="https://www.google.com/search/?q={{ venue.name | urlencode }}+{{ event.location_city | urlencode }}+booking"
+                               target="_blank" class="btn btn-outline-success btn-sm">
+                                <i class="bi bi-telephone"></i> Find Contact / Book
+                            </a>
+                            <button type="button" class="btn btn-primary btn-sm select-venue-btn ms-auto"
+                                    data-venue-idx="{{ loop.index0 }}">
+                                {% if selected_idx == loop.index0 %}
+                                <i class="bi bi-check-circle-fill"></i> Selected
+                                {% else %}
+                                <i class="bi bi-check-circle"></i> Select This Venue
+                                {% endif %}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="alert alert-warning">No venue suggestions available. Please regenerate your plan.</div>
+        {% endif %}
+
+        <div class="d-flex justify-content-between mt-4">
+            <a href="{{ url_for('dashboard.index') }}" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left"></i> Save & Exit
+            </a>
+            <a href="{{ url_for('wizard.step_food', event_id=event.id) }}" class="btn btn-primary btn-lg">
+                Next: Order Food <i class="bi bi-arrow-right"></i>
+            </a>
+        </div>
+    </div>
+
+    {% include "partials/_event_summary.html" %}
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+(function() {
+    const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
+    const eventId = {{ event.id }};
+
+    document.querySelectorAll('.select-venue-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const idx = parseInt(this.dataset.venueIdx);
+            fetch(`/api/event/${eventId}/select`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrfToken},
+                body: JSON.stringify({key: 'venue', value: idx})
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.status === 'success') window.location.reload();
+            });
+        });
+    });
+})();
+</script>
+{% endblock %}

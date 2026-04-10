@@ -31,12 +31,13 @@ def event_detail(event_id):
     # If still in draft, redirect to current wizard step
     if event.status == 'draft':
         step_map = {
-            1: 'wizard.step1_basics',
-            2: 'wizard.step2_generate',
-            3: 'wizard.step3_review',
-            4: 'wizard.step4_actions',
+            1: 'wizard.generate_loading',
+            2: 'wizard.step_venue',
+            3: 'wizard.step_food',
+            4: 'wizard.step_decorations',
+            5: 'wizard.step_entertainment',
         }
-        return redirect(url_for(step_map.get(event.current_step, 'wizard.step2_generate'),
+        return redirect(url_for(step_map.get(event.current_step, 'wizard.step_venue'),
                                 event_id=event.id))
 
     checklist_items = event.checklist_items.order_by(

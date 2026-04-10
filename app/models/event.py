@@ -59,6 +59,10 @@ class EventPlan(db.Model):
     shopping_list = db.Column(db.Text)
     cost_breakdown = db.Column(db.Text)
 
+    # User's selections per action step
+    # Example: {"venue": 0, "food_style": "catering", "decorations_picked": [0,1,3], "entertainment_picked": [0,2]}
+    user_selections = db.Column(db.Text)
+
     raw_ai_response = db.Column(db.Text)
     version = db.Column(db.Integer, default=1)
 
@@ -85,3 +89,16 @@ class EventPlan(db.Model):
 
     def get_all_sections(self):
         return {f: self.get_section(f) for f in self.SECTION_FIELDS}
+
+    def get_selections(self):
+        if self.user_selections:
+            try:
+                return json.loads(self.user_selections)
+            except (json.JSONDecodeError, TypeError):
+                return {}
+        return {}
+
+    def set_selection(self, key, value):
+        sel = self.get_selections()
+        sel[key] = value
+        self.user_selections = json.dumps(sel)

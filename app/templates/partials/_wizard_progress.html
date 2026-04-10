@@ -1,12 +1,13 @@
-{% set current = event.current_step if event is defined and event else 1 %}
+{% set current = current_step if current_step is defined else (event.current_step if event is defined and event else 1) %}
 <div class="wizard-progress mb-4">
     {% set steps = [
-        (1, 'Event Details'),
-        (2, 'AI Planning'),
-        (3, 'Review & Refine'),
-        (4, 'Action Items')
+        (1, 'Event Details', 'bi-info-circle'),
+        (2, 'Venue', 'bi-geo-alt'),
+        (3, 'Food', 'bi-cup-hot'),
+        (4, 'Decorations', 'bi-balloon'),
+        (5, 'Entertainment', 'bi-music-note-beamed')
     ] %}
-    {% for num, label in steps %}
+    {% for num, label, icon in steps %}
     <div class="wizard-step {{ 'completed' if num < current else ('active' if num == current else '') }}">
         <span class="wizard-step-number">
             {% if num < current %}

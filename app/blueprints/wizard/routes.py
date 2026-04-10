@@ -10,6 +10,15 @@ from app.services.links import amazon_search_url, google_maps_search_url
 from functools import wraps
 
 
+# Step numbering:
+# 1 = Event Basics
+# 2 = Select Venue
+# 3 = Order Food
+# 4 = Buy Decorations
+# 5 = Book Entertainment
+# 6 = Complete
+
+
 def require_event_owner(f):
     @wraps(f)
     def decorated(event_id, *args, **kwargs):
@@ -42,24 +51,25 @@ def step1_basics():
         )
         db.session.add(event)
         db.session.commit()
-        return redirect(url_for('wizard.step2_generate', event_id=event.id))
+        return redirect(url_for('wizard.generate_loading', event_id=event.id))
 
     return render_template('wizard/step1_basics.html', form=form)
 
 
-@wizard_bp.route('/<int:event_id>/step/2')
+@wizard_bp.route('/<int:event_id>/generating')
 @login_required
 @require_event_owner
-def step2_generate(event):
-    if event.current_step > 2 and event.plan:
-        return redirect(url_for('wizard.step3_review', event_id=event.id))
-    return render_template('wizard/step2_generating.html', event=event)
+def generate_loading(event):
+    """Loading transition page that triggers AI generation."""
+    if event.plan:
+        return redirect(url_for('wizard.step_venue', event_id=event.id))
+    return render_template('wizard/generating.html', event=event)
 
 
 @wizard_bp.route('/<int:event_id>/generate', methods=['POST'])
 @login_required
 @require_event_owner
-def step2_do_generate(event):
+def do_generate(event):
     try:
         plan_dict, raw_response = generate_party_plan(event)
     except Exception as e:
@@ -80,48 +90,96 @@ def step2_do_generate(event):
         item = ChecklistItem(event_id=event.id, **item_data)
         db.session.add(item)
 
-    event.current_step = 3
+    event.current_step = 2
     db.session.commit()
 
     return jsonify({
         'status': 'success',
-        'redirect': url_for('wizard.step3_review', event_id=event.id)
+        'redirect': url_for('wizard.step_venue', event_id=event.id)
     })
 
 
-@wizard_bp.route('/<int:event_id>/step/3')
+def _ensure_plan_exists(event):
+    if not event.plan:
+        return redirect(url_for('wizard.generate_loading', event_id=event.id))
+    return None
+
+
+@wizard_bp.route('/<int:event_id>/venue', methods=['GET', 'POST'])
 @login_required
 @require_event_owner
-def step3_review(event):
-    if not event.plan:
-        return redirect(url_for('wizard.step2_generate', event_id=event.id))
+def step_venue(event):
+    redir = _ensure_plan_exists(event)
+    if redir:
+        return redir
 
-    sections = event.plan.get_all_sections()
-    chat_messages = event.chat_messages.all()
+    venues = event.plan.get_section('venue_suggestions') or []
+    selections = event.plan.get_selections()
+    selected_idx = selections.get('venue')
 
-    return render_template('wizard/step3_review.html',
-                           event=event, sections=sections,
-                           chat_messages=chat_messages)
+    return render_template('wizard/step_venue.html',
+                           event=event, venues=venues,
+                           selected_idx=selected_idx,
+                           current_step=2)
 
 
-@wizard_bp.route('/<int:event_id>/step/4')
+@wizard_bp.route('/<int:event_id>/food', methods=['GET'])
 @login_required
 @require_event_owner
-def step4_actions(event):
-    if not event.plan:
-        return redirect(url_for('wizard.step2_generate', event_id=event.id))
+def step_food(event):
+    redir = _ensure_plan_exists(event)
+    if redir:
+        return redir
 
-    checklist_items = event.checklist_items.order_by(
-        ChecklistItem.category, ChecklistItem.sort_order
-    ).all()
+    food = event.plan.get_section('food_catering') or {}
+    selections = event.plan.get_selections()
 
-    # Group by category
-    grouped = {}
-    for item in checklist_items:
-        grouped.setdefault(item.category, []).append(item)
+    return render_template('wizard/step_food.html',
+                           event=event, food=food,
+                           selected_style=selections.get('food_style'),
+                           current_step=3)
 
-    return render_template('wizard/step4_actions.html',
-                           event=event, grouped_items=grouped)
+
+@wizard_bp.route('/<int:event_id>/decorations', methods=['GET'])
+@login_required
+@require_event_owner
+def step_decorations(event):
+    redir = _ensure_plan_exists(event)
+    if redir:
+        return redir
+
+    decorations = event.plan.get_section('decorations') or []
+    selections = event.plan.get_selections()
+    picked = set(selections.get('decorations_picked', []))
+
+    # Add Amazon link to each
+    for i, deco in enumerate(decorations):
+        deco['_amazon_url'] = amazon_search_url(deco.get('item', ''))
+        deco['_picked'] = i in picked
+
+    return render_template('wizard/step_decorations.html',
+                           event=event, decorations=decorations,
+                           current_step=4)
+
+
+@wizard_bp.route('/<int:event_id>/entertainment', methods=['GET'])
+@login_required
+@require_event_owner
+def step_entertainment(event):
+    redir = _ensure_plan_exists(event)
+    if redir:
+        return redir
+
+    entertainment = event.plan.get_section('entertainment') or []
+    selections = event.plan.get_selections()
+    picked = set(selections.get('entertainment_picked', []))
+
+    for i, ent in enumerate(entertainment):
+        ent['_picked'] = i in picked
+
+    return render_template('wizard/step_entertainment.html',
+                           event=event, entertainment=entertainment,
+                           current_step=5)
 
 
 @wizard_bp.route('/<int:event_id>/finalize', methods=['POST'])
@@ -129,7 +187,7 @@ def step4_actions(event):
 @require_event_owner
 def finalize(event):
     event.status = 'planned'
-    event.current_step = 4
+    event.current_step = 6
     db.session.commit()
-    flash('Your party plan has been saved!', 'success')
+    flash('Your event is all set!', 'success')
     return redirect(url_for('dashboard.event_detail', event_id=event.id))

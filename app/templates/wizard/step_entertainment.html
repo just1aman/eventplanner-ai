@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+{% block title %}Book Entertainment - EventPlanner.AI{% endblock %}
+
+{% block content %}
+{% include "partials/_wizard_progress.html" %}
+
+<div class="row">
+    <div class="col-lg-9">
+        <h2 class="mb-1"><i class="bi bi-music-note-beamed me-2"></i>Book Entertainment</h2>
+        <p class="text-muted mb-4">Pick the activities you want to include. We'll help you find the right vendors.</p>
+
+        {% if entertainment %}
+        <div class="row g-3">
+            {% for ent in entertainment %}
+            <div class="col-md-6">
+                <div class="card h-100 {{ 'border-primary border-2' if ent._picked else '' }}">
+                    <div class="card-body">
+                        <div class="form-check mb-2">
+                            <input class="form-check-input ent-toggle" type="checkbox"
+                                   data-idx="{{ loop.index0 }}"
+                                   id="ent-{{ loop.index0 }}"
+                                   {{ 'checked' if ent._picked else '' }}>
+                            <label class="form-check-label fw-bold" for="ent-{{ loop.index0 }}">
+                                {{ ent.activity }}
+                            </label>
+                        </div>
+                        <p class="card-text small mb-2">{{ ent.description }}</p>
+                        <div class="d-flex gap-2 flex-wrap align-items-center">
+                            <span class="badge bg-secondary">{{ ent.duration_minutes }} min</span>
+                            <span class="badge bg-success">{{ ent.estimated_cost }}</span>
+                        </div>
+                        <div class="mt-2">
+                            <a href="https://www.google.com/search/?q={{ ent.activity | urlencode }}+{{ event.location_city | urlencode }}"
+                               target="_blank" class="btn btn-outline-primary btn-sm">
+                                <i class="bi bi-search"></i> Find Vendors
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="alert alert-warning">No entertainment suggestions available.</div>
+        {% endif %}
+
+        <div class="d-flex justify-content-between mt-4 mb-4">
+            <a href="{{ url_for('wizard.step_decorations', event_id=event.id) }}" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left"></i> Back
+            </a>
+            <form method="POST" action="{{ url_for('wizard.finalize', event_id=event.id) }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="btn btn-success btn-lg">
+                    <i class="bi bi-check-circle"></i> Finish & Save Event
+                </button>
+            </form>
+        </div>
+    </div>
+
+    {% include "partials/_event_summary.html" %}
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+(function() {
+    const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
+    const eventId = {{ event.id }};
+
+    document.querySelectorAll('.ent-toggle').forEach(cb => {
+        cb.addEventListener('change', function() {
+            const idx = parseInt(this.dataset.idx);
+            const action = this.checked ? 'add' : 'remove';
+            fetch(`/api/event/${eventId}/select`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrfToken},
+                body: JSON.stringify({key: 'entertainment_picked', value: idx, action: action})
+            });
+        });
+    });
+})();
+</script>
+{% endblock %}

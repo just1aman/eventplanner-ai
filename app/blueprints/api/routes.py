@@ -96,3 +96,44 @@ def get_weather(event_id):
 
     forecast = get_forecast_for_date(event.event_date, event.location_city or '')
     return jsonify(forecast or {'available': False, 'message': 'No forecast available.'})
+
+
+@api_bp.route('/event/<int:event_id>/select', methods=['POST'])
+@login_required
+def save_selection(event_id):
+    """Save a user selection for an action step.
+
+    Body shapes:
+      - Single value: {"key": "venue", "value": 0}
+      - List add/remove: {"key": "decorations_picked", "value": 2, "action": "add"|"remove"}
+    """
+    event = _get_user_event(event_id)
+    if not event or not event.plan:
+        return jsonify({'error': 'Forbidden or no plan'}), 403
+
+    data = request.get_json() or {}
+    key = data.get('key')
+    value = data.get('value')
+    action = data.get('action')
+
+    if not key:
+        return jsonify({'error': 'Missing key'}), 400
+
+    selections = event.plan.get_selections()
+
+    if action in ('add', 'remove'):
+        current_list = selections.get(key, [])
+        if not isinstance(current_list, list):
+            current_list = []
+        if action == 'add' and value not in current_list:
+            current_list.append(value)
+        elif action == 'remove' and value in current_list:
+            current_list.remove(value)
+        selections[key] = current_list
+    else:
+        selections[key] = value
+
+    event.plan.user_selections = json.dumps(selections)
+    db.session.commit()
+
+    return jsonify({'status': 'success', 'selections': selections})
