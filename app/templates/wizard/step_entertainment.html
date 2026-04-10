@@ -30,7 +30,7 @@
                             <span class="badge bg-success">{{ ent.estimated_cost }}</span>
                         </div>
                         <div class="mt-2">
-                            <a href="https://www.google.com/search/?q={{ ent.activity | urlencode }}+{{ event.location_city | urlencode }}"
+                            <a href="https://www.google.com/search?q={{ ent.activity | urlencode }}+{{ event.location_city | urlencode }}"
                                target="_blank" class="btn btn-outline-primary btn-sm">
                                 <i class="bi bi-search"></i> Find Vendors
                             </a>
