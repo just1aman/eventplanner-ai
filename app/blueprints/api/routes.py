@@ -6,8 +6,9 @@ from app.extensions import db
 from app.models.event import Event
 from app.models.checklist import ChecklistItem
 from app.models.chat import ChatMessage
-from app.services.ai_planner import refine_plan_section
+from app.services.ai_planner import refine_plan_section, generate_diy_shopping_list
 from app.services.weather import get_forecast_for_date
+from app.services.links import amazon_search_url
 
 
 def _get_user_event(event_id):
@@ -96,6 +97,38 @@ def get_weather(event_id):
 
     forecast = get_forecast_for_date(event.event_date, event.location_city or '')
     return jsonify(forecast or {'available': False, 'message': 'No forecast available.'})
+
+
+@api_bp.route('/event/<int:event_id>/diy-shopping', methods=['POST'])
+@login_required
+def generate_diy_shopping(event_id):
+    """Generate a DIY shopping list from a user-provided dish description."""
+    event = _get_user_event(event_id)
+    if not event or not event.plan:
+        return jsonify({'error': 'Forbidden or no plan'}), 403
+
+    data = request.get_json() or {}
+    dishes = (data.get('dishes') or '').strip()
+    if not dishes:
+        return jsonify({'error': 'Please describe what you want to cook.'}), 400
+
+    try:
+        items = generate_diy_shopping_list(dishes, event.guest_count or 10)
+    except Exception as e:
+        return jsonify({'error': f'Failed to generate shopping list: {str(e)}'}), 500
+
+    # Add Amazon URL to each item
+    for item in items:
+        item['amazon_url'] = amazon_search_url(item.get('item', ''))
+
+    # Save to user_selections so it persists across reloads
+    selections = event.plan.get_selections()
+    selections['diy_dishes'] = dishes
+    selections['diy_shopping_list'] = items
+    event.plan.user_selections = json.dumps(selections)
+    db.session.commit()
+
+    return jsonify({'status': 'success', 'items': items, 'dishes': dishes})
 
 
 @api_bp.route('/event/<int:event_id>/select', methods=['POST'])

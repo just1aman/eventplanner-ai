@@ -185,6 +185,50 @@ Respond with ONLY the updated JSON for the "{section_name}" section, using the s
     return json.loads(raw_text[start:end])
 
 
+def generate_diy_shopping_list(dishes_description, guest_count):
+    """Generate a shopping list of ingredients for DIY food.
+
+    Returns a list of dicts: [{"item": str, "quantity": str, "category": str}, ...]
+    """
+    client = _get_client()
+    model = current_app.config.get('ANTHROPIC_MODEL', 'claude-sonnet-4-20250514')
+
+    prompt = f"""I'm cooking food for {guest_count} guests at a birthday party. Here's what I want to make:
+
+{dishes_description}
+
+Generate a complete shopping list of ingredients I need to buy. Include realistic quantities for {guest_count} people.
+
+Respond with ONLY valid JSON in this exact format:
+{{
+  "items": [
+    {{"item": "ingredient name", "quantity": "e.g., 2 lbs or 1 jar", "category": "produce|meat|dairy|pantry|drinks|other"}}
+  ]
+}}
+Do not include any text outside the JSON."""
+
+    response = client.messages.create(
+        model=model,
+        max_tokens=2048,
+        system="You are a helpful cooking assistant. Respond only with valid JSON.",
+        messages=[{"role": "user", "content": prompt}],
+    )
+
+    raw_text = response.content[0].text
+    try:
+        data = json.loads(raw_text)
+    except json.JSONDecodeError:
+        match = re.search(r'```(?:json)?\s*([\s\S]*?)```', raw_text)
+        if match:
+            data = json.loads(match.group(1))
+        else:
+            start = raw_text.index('{')
+            end = raw_text.rindex('}') + 1
+            data = json.loads(raw_text[start:end])
+
+    return data.get('items', [])
+
+
 def generate_checklist_from_plan(plan_dict, event):
     """Convert plan sections into ChecklistItem dicts."""
     from app.services.links import amazon_search_url, google_maps_search_url

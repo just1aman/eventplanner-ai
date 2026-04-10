@@ -137,6 +137,8 @@ def step_food(event):
     return render_template('wizard/step_food.html',
                            event=event, food=food,
                            selected_style=selections.get('food_style'),
+                           diy_dishes=selections.get('diy_dishes', ''),
+                           diy_shopping_list=selections.get('diy_shopping_list', []),
                            current_step=3)
 
 

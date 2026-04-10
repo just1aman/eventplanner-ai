@@ -75,27 +75,50 @@
             {% endif %}
         </div>
 
-        <!-- Menu suggestions (only shown when DIY is selected) -->
-        {% if selected_style == 'diy' and food.menu_suggestions %}
-        <h5 class="mt-4">Suggested Menu Items</h5>
-        <div class="card">
-            <ul class="list-group list-group-flush">
-                {% for item in food.menu_suggestions %}
-                <li class="list-group-item d-flex justify-content-between align-items-center">
-                    <div>
-                        <strong>{{ item.item }}</strong>
-                        <small class="text-muted ms-2">Serves {{ item.serves }}</small>
-                    </div>
-                    <div>
-                        <span class="badge bg-light text-dark me-2">{{ item.estimated_cost }}</span>
-                        <a href="https://www.amazon.com/s?k={{ item.item | urlencode }}" target="_blank"
-                           class="btn btn-outline-warning btn-sm">
-                            <i class="bi bi-cart"></i> Amazon
-                        </a>
-                    </div>
-                </li>
-                {% endfor %}
-            </ul>
+        <!-- DIY shopping helper (only shown when DIY is selected) -->
+        {% if selected_style == 'diy' %}
+        <div class="card mt-4 border-primary" id="diy-helper">
+            <div class="card-body">
+                <h5 class="card-title"><i class="bi bi-basket me-2"></i>Need help with shopping?</h5>
+                <p class="text-muted">
+                    Tell me what dishes you want to cook and I'll generate a complete shopping list
+                    with Amazon links so you can order everything you need.
+                </p>
+
+                <div class="mb-3">
+                    <label for="diy-dishes" class="form-label">What do you want to cook?</label>
+                    <textarea id="diy-dishes" class="form-control" rows="3"
+                              placeholder="e.g., spaghetti with meatballs, garden salad, garlic bread, chocolate cake">{{ diy_dishes }}</textarea>
+                </div>
+                <button type="button" id="generate-shopping-btn" class="btn btn-primary">
+                    <i class="bi bi-magic"></i> Generate Shopping List
+                </button>
+
+                <!-- Result area -->
+                <div id="shopping-list-result" class="mt-4 {{ '' if diy_shopping_list else 'd-none' }}">
+                    <h6 class="border-bottom pb-2">Your Shopping List</h6>
+                    <p class="text-muted small">Check off items as you order them. Click Amazon to buy.</p>
+                    <ul class="list-group" id="shopping-list-items">
+                        {% for item in diy_shopping_list %}
+                        <li class="list-group-item d-flex align-items-center">
+                            <input class="form-check-input me-2" type="checkbox">
+                            <div class="flex-grow-1">
+                                <strong>{{ item.item }}</strong>
+                                <small class="text-muted ms-2">{{ item.quantity }}</small>
+                                {% if item.category %}
+                                <span class="badge bg-light text-dark ms-1">{{ item.category }}</span>
+                                {% endif %}
+                            </div>
+                            <a href="{{ item.amazon_url }}" target="_blank" class="btn btn-warning btn-sm">
+                                <i class="bi bi-cart"></i> Amazon
+                            </a>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+
+                <div id="shopping-error" class="alert alert-danger mt-3 d-none"></div>
+            </div>
         </div>
         {% endif %}
 
@@ -131,6 +154,74 @@
             .then(data => { if (data.status === 'success') window.location.reload(); });
         });
     });
+
+    // DIY shopping list generator
+    const generateBtn = document.getElementById('generate-shopping-btn');
+    if (generateBtn) {
+        generateBtn.addEventListener('click', function() {
+            const dishes = document.getElementById('diy-dishes').value.trim();
+            const errorEl = document.getElementById('shopping-error');
+            const resultEl = document.getElementById('shopping-list-result');
+            const listEl = document.getElementById('shopping-list-items');
+
+            errorEl.classList.add('d-none');
+            if (!dishes) {
+                errorEl.textContent = 'Please describe what you want to cook.';
+                errorEl.classList.remove('d-none');
+                return;
+            }
+
+            const originalText = generateBtn.innerHTML;
+            generateBtn.disabled = true;
+            generateBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Generating...';
+
+            fetch(`/api/event/${eventId}/diy-shopping`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrfToken},
+                body: JSON.stringify({dishes})
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.status === 'success' && data.items) {
+                    listEl.innerHTML = '';
+                    data.items.forEach(item => {
+                        const li = document.createElement('li');
+                        li.className = 'list-group-item d-flex align-items-center';
+                        li.innerHTML = `
+                            <input class="form-check-input me-2" type="checkbox">
+                            <div class="flex-grow-1">
+                                <strong></strong>
+                                <small class="text-muted ms-2"></small>
+                                <span class="badge bg-light text-dark ms-1"></span>
+                            </div>
+                            <a target="_blank" class="btn btn-warning btn-sm">
+                                <i class="bi bi-cart"></i> Amazon
+                            </a>
+                        `;
+                        li.querySelector('strong').textContent = item.item;
+                        li.querySelector('small').textContent = item.quantity || '';
+                        const badge = li.querySelector('.badge');
+                        if (item.category) badge.textContent = item.category;
+                        else badge.remove();
+                        li.querySelector('a').href = item.amazon_url;
+                        listEl.appendChild(li);
+                    });
+                    resultEl.classList.remove('d-none');
+                } else {
+                    errorEl.textContent = data.error || 'Failed to generate shopping list.';
+                    errorEl.classList.remove('d-none');
+                }
+            })
+            .catch(() => {
+                errorEl.textContent = 'Network error. Please try again.';
+                errorEl.classList.remove('d-none');
+            })
+            .finally(() => {
+                generateBtn.disabled = false;
+                generateBtn.innerHTML = originalText;
+            });
+        });
+    }
 })();
 </script>
 {% endblock %}
