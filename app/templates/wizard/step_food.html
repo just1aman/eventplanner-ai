@@ -75,8 +75,8 @@
             {% endif %}
         </div>
 
-        <!-- Menu suggestions -->
-        {% if food.menu_suggestions %}
+        <!-- Menu suggestions (only shown when DIY is selected) -->
+        {% if selected_style == 'diy' and food.menu_suggestions %}
         <h5 class="mt-4">Suggested Menu Items</h5>
         <div class="card">
             <ul class="list-group list-group-flush">
