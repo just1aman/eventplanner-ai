@@ -40,19 +40,48 @@ def event_detail(event_id):
         return redirect(url_for(step_map.get(event.current_step, 'wizard.step_venue'),
                                 event_id=event.id))
 
-    checklist_items = event.checklist_items.order_by(
-        ChecklistItem.category, ChecklistItem.sort_order
-    ).all()
-
-    grouped = {}
-    for item in checklist_items:
-        grouped.setdefault(item.category, []).append(item)
-
     sections = event.plan.get_all_sections() if event.plan else {}
+    selections = event.plan.get_selections() if event.plan else {}
+
+    # Compute the user's actual choices
+    selected = {
+        'venue': None,
+        'food_style': selections.get('food_style'),
+        'food_option': None,
+        'diy_dishes': selections.get('diy_dishes', ''),
+        'diy_shopping_list': selections.get('diy_shopping_list', []),
+        'decorations': [],
+        'entertainment': [],
+    }
+
+    venues = sections.get('venue_suggestions') or []
+    venue_idx = selections.get('venue')
+    if venue_idx is not None and 0 <= venue_idx < len(venues):
+        selected['venue'] = venues[venue_idx]
+
+    food = sections.get('food_catering') or {}
+    if selected['food_style'] == 'catering':
+        selected['food_option'] = food.get('catering_option')
+    elif selected['food_style'] == 'diy':
+        selected['food_option'] = food.get('diy_option')
+
+    decorations = sections.get('decorations') or []
+    deco_picked = selections.get('decorations_picked', [])
+    from app.services.links import amazon_search_url
+    for idx in deco_picked:
+        if 0 <= idx < len(decorations):
+            d = dict(decorations[idx])
+            d['amazon_url'] = amazon_search_url(d.get('item', ''))
+            selected['decorations'].append(d)
+
+    entertainment = sections.get('entertainment') or []
+    ent_picked = selections.get('entertainment_picked', [])
+    for idx in ent_picked:
+        if 0 <= idx < len(entertainment):
+            selected['entertainment'].append(entertainment[idx])
 
     return render_template('dashboard/event_detail.html',
-                           event=event, sections=sections,
-                           grouped_items=grouped)
+                           event=event, selected=selected)
 
 
 @dashboard_bp.route('/event/<int:event_id>/delete', methods=['POST'])

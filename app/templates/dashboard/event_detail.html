@@ -8,7 +8,8 @@
         <p class="text-muted mb-0">
             {{ event.event_date.strftime('%B %d, %Y') }} &bull;
             {{ event.location_city }} &bull;
-            {{ event.guest_count }} guests
+            {{ event.guest_count }} guests &bull;
+            {{ event.budget_display }}
         </p>
     </div>
     <a href="{{ url_for('dashboard.index') }}" class="btn btn-outline-secondary">
@@ -16,78 +17,162 @@
     </a>
 </div>
 
-<div class="row">
-    <!-- Plan Sections -->
-    <div class="col-lg-7">
-        <h4 class="mb-3">Party Plan</h4>
-        {% if sections %}
-        {% set section_config = [
-            ('venue_suggestions', 'Venue Suggestions', 'bi-geo-alt'),
-            ('decorations', 'Decorations', 'bi-balloon'),
-            ('food_catering', 'Food & Catering', 'bi-cup-hot'),
-            ('entertainment', 'Entertainment', 'bi-music-note-beamed'),
-            ('day_timeline', 'Day Timeline', 'bi-clock'),
-            ('shopping_list', 'Shopping List', 'bi-cart'),
-            ('cost_breakdown', 'Cost Breakdown', 'bi-cash-stack'),
-        ] %}
-
-        <div class="accordion" id="planAccordion">
-            {% for key, title, icon in section_config %}
-            {% if sections.get(key) %}
-            <div class="accordion-item">
-                <h2 class="accordion-header">
-                    <button class="accordion-button collapsed" type="button"
-                            data-bs-toggle="collapse" data-bs-target="#detail-{{ key }}">
-                        <i class="bi {{ icon }} me-2"></i> {{ title }}
-                    </button>
-                </h2>
-                <div id="detail-{{ key }}" class="accordion-collapse collapse" data-bs-parent="#planAccordion">
-                    <div class="accordion-body">
-                        {% include "partials/_plan_section.html" %}
-                    </div>
-                </div>
+<div class="row g-4">
+    <!-- Venue -->
+    <div class="col-md-6">
+        <div class="card h-100">
+            <div class="card-header bg-white">
+                <h5 class="mb-0"><i class="bi bi-geo-alt me-2 text-primary"></i>Venue</h5>
             </div>
-            {% endif %}
-            {% endfor %}
+            <div class="card-body">
+                {% if selected.venue %}
+                <h6>{{ selected.venue.name }}</h6>
+                <p class="small text-muted mb-2">{{ selected.venue.description }}</p>
+                {% if selected.venue.address %}
+                <p class="small mb-2"><i class="bi bi-pin-map"></i> {{ selected.venue.address }}</p>
+                {% endif %}
+                <span class="badge bg-success mb-2">{{ selected.venue.estimated_cost }}</span>
+                <div class="mt-2">
+                    <a href="https://www.google.com/maps/search/{{ selected.venue.name | urlencode }}+{{ event.location_city | urlencode }}"
+                       target="_blank" class="btn btn-sm btn-outline-primary">
+                        <i class="bi bi-geo-alt"></i> View on Maps
+                    </a>
+                    <a href="https://www.google.com/search?q={{ selected.venue.name | urlencode }}+{{ event.location_city | urlencode }}+booking"
+                       target="_blank" class="btn btn-sm btn-outline-success">
+                        <i class="bi bi-telephone"></i> Find Contact
+                    </a>
+                </div>
+                {% else %}
+                <p class="text-muted mb-2">No venue selected.</p>
+                <a href="{{ url_for('wizard.step_venue', event_id=event.id) }}" class="btn btn-sm btn-primary">Pick a Venue</a>
+                {% endif %}
+            </div>
         </div>
-        {% endif %}
     </div>
 
-    <!-- Checklist -->
-    <div class="col-lg-5 mt-4 mt-lg-0">
-        <h4 class="mb-3">Checklist</h4>
-        {% for category, items in grouped_items.items() %}
-        <div class="card mb-3">
-            <div class="card-header bg-white py-2">
-                <strong>{{ category | replace('_', ' ') | title }}</strong>
+    <!-- Food -->
+    <div class="col-md-6">
+        <div class="card h-100">
+            <div class="card-header bg-white">
+                <h5 class="mb-0"><i class="bi bi-cup-hot me-2 text-primary"></i>Food</h5>
             </div>
-            <div class="list-group list-group-flush">
-                {% for item in items %}
-                <div class="list-group-item py-2 checklist-item {{ 'completed' if item.is_completed else '' }}"
-                     id="checklist-{{ item.id }}">
-                    <div class="d-flex align-items-center">
-                        <input class="form-check-input me-2 checklist-toggle"
-                               type="checkbox"
-                               data-item-id="{{ item.id }}"
-                               {{ 'checked' if item.is_completed else '' }}>
-                        <div class="flex-grow-1">
-                            <span class="checklist-title small">{{ item.title }}</span>
+            <div class="card-body">
+                {% if selected.food_style %}
+                <h6>
+                    {% if selected.food_style == 'catering' %}
+                    <i class="bi bi-truck"></i> Catering
+                    {% else %}
+                    <i class="bi bi-house-heart"></i> DIY / Home-cooked
+                    {% endif %}
+                </h6>
+                {% if selected.food_option %}
+                <p class="small text-muted mb-2">{{ selected.food_option.description }}</p>
+                <span class="badge bg-success">{{ selected.food_option.estimated_cost }}</span>
+                {% endif %}
+                {% if selected.food_style == 'diy' and selected.diy_dishes %}
+                <hr>
+                <p class="small mb-1"><strong>Dishes:</strong> {{ selected.diy_dishes }}</p>
+                {% if selected.diy_shopping_list %}
+                <p class="small mb-0"><strong>{{ selected.diy_shopping_list | length }}</strong> ingredients on shopping list</p>
+                {% endif %}
+                {% endif %}
+                {% else %}
+                <p class="text-muted mb-2">No food option selected.</p>
+                <a href="{{ url_for('wizard.step_food', event_id=event.id) }}" class="btn btn-sm btn-primary">Choose Food</a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Decorations -->
+    <div class="col-md-6">
+        <div class="card h-100">
+            <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="bi bi-balloon me-2 text-primary"></i>Decorations</h5>
+                {% if selected.decorations %}
+                <span class="badge bg-secondary">{{ selected.decorations | length }} items</span>
+                {% endif %}
+            </div>
+            <div class="card-body">
+                {% if selected.decorations %}
+                <ul class="list-unstyled mb-0">
+                    {% for deco in selected.decorations %}
+                    <li class="mb-2 d-flex justify-content-between align-items-start">
+                        <div class="me-2">
+                            <strong class="small">{{ deco.item }}</strong>
+                            <div class="text-muted small">{{ deco.estimated_cost }}</div>
                         </div>
-                        {% if item.external_url %}
-                        <a href="{{ item.external_url }}" target="_blank" class="btn btn-sm btn-outline-secondary py-0 px-1">
-                            <i class="bi bi-link-45deg"></i>
+                        <a href="{{ deco.amazon_url }}" target="_blank" class="btn btn-warning btn-sm">
+                            <i class="bi bi-cart"></i>
                         </a>
-                        {% endif %}
-                    </div>
-                </div>
-                {% endfor %}
+                    </li>
+                    {% endfor %}
+                </ul>
+                {% else %}
+                <p class="text-muted mb-2">No decorations selected.</p>
+                <a href="{{ url_for('wizard.step_decorations', event_id=event.id) }}" class="btn btn-sm btn-primary">Pick Decorations</a>
+                {% endif %}
             </div>
         </div>
-        {% endfor %}
     </div>
-</div>
-{% endblock %}
 
-{% block extra_scripts %}
-<script src="{{ url_for('static', filename='js/checklist.js') }}"></script>
+    <!-- Entertainment -->
+    <div class="col-md-6">
+        <div class="card h-100">
+            <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="bi bi-music-note-beamed me-2 text-primary"></i>Entertainment</h5>
+                {% if selected.entertainment %}
+                <span class="badge bg-secondary">{{ selected.entertainment | length }} items</span>
+                {% endif %}
+            </div>
+            <div class="card-body">
+                {% if selected.entertainment %}
+                <ul class="list-unstyled mb-0">
+                    {% for ent in selected.entertainment %}
+                    <li class="mb-2">
+                        <strong class="small">{{ ent.activity }}</strong>
+                        <div class="text-muted small">{{ ent.description }}</div>
+                        <span class="badge bg-light text-dark">{{ ent.duration_minutes }} min</span>
+                        <span class="badge bg-success">{{ ent.estimated_cost }}</span>
+                    </li>
+                    {% endfor %}
+                </ul>
+                {% else %}
+                <p class="text-muted mb-2">No entertainment selected.</p>
+                <a href="{{ url_for('wizard.step_entertainment', event_id=event.id) }}" class="btn btn-sm btn-primary">Pick Activities</a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- DIY Shopping List (only if DIY food) -->
+    {% if selected.food_style == 'diy' and selected.diy_shopping_list %}
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header bg-white">
+                <h5 class="mb-0"><i class="bi bi-basket me-2 text-primary"></i>DIY Shopping List</h5>
+            </div>
+            <div class="card-body">
+                <ul class="list-group list-group-flush">
+                    {% for item in selected.diy_shopping_list %}
+                    <li class="list-group-item d-flex align-items-center">
+                        <input class="form-check-input me-2" type="checkbox">
+                        <div class="flex-grow-1">
+                            <strong>{{ item.item }}</strong>
+                            <small class="text-muted ms-2">{{ item.quantity }}</small>
+                            {% if item.category %}
+                            <span class="badge bg-light text-dark ms-1">{{ item.category }}</span>
+                            {% endif %}
+                        </div>
+                        <a href="{{ item.amazon_url }}" target="_blank" class="btn btn-warning btn-sm">
+                            <i class="bi bi-cart"></i> Amazon
+                        </a>
+                    </li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
 {% endblock %}
